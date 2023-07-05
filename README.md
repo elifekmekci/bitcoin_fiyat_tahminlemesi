@@ -1,4 +1,4 @@
-# Bitcoin Fiyat Tahminlemesi 💸💰
+# Bitcoin Fiyat Tahminlemesi 💰
  Bu çalışmada günlük Bitcoin fiyat verileri ile gelecekteki Bitcoin fiyatlarının tahminlemesi yapılmıştır. 
 
  **Kaynak:** https://www.kaggle.com/datasets/kapturovalexander/bitcoin-and-ethereum-prices-from-start-to-2023
