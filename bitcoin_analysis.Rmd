@@ -1,0 +1,144 @@
+---
+title: "Bitcoin Fiyatlarının Doğrusal Olmayan Trendlere Uyan Bir Regresyon Modeli ile Tahmini "
+author: "ELİF EKMEKCİ"
+date: "2023-06-10"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Bu uygulamada mevsimsellik ve tatil etkileri ile doğrusal olmayan trendlere uyan bir regresyon modeli uygulayarak tahminleme yapacağız.
+R programı kullanarak verimiz için **ds(tarih)**, standart tahmini kapanış fiyatı **yhat**, daha düşük tahmini kapanış fiyatı **that_lower** ve üst tahmini kapanış fiyatı **yhat_upper'ı** içeren bir vektör oluşturalım.
+
+
+#### 1.ADIM
+Analizimize başlamadan önce gerekli kütüphaneleri aktive edelim
+
+```{r message=FALSE, warning=FALSE}
+library(readxl) # excel dosyasindan veri ayiklamak icin
+library(stringr) # model entegrasyonu icin dize degerlerini degistirmek icin 
+library(dplyr) # ilk ham veri kumesini islemek icin
+library(prophet) # zaman serisi tahmin prosedurunu uygulamak icin 
+```
+
+#### 2.ADIM
+Verimizi çekelim ve my_data olarak isimlendirelim 
+
+```{r message=FALSE, warning=FALSE}
+my_data <- read.csv("/Users/elif/Desktop/Bitcoin_prices.csv",header = T)
+```
+
+#### 3.ADIM
+Verimizin ilk 6 ve son 6 gözlemini inceleyelim
+```{r message=FALSE, warning=FALSE}
+knitr::kable(head(my_data))
+knitr::kable(tail(my_data))
+```
+
+#### 4.ADIM
+
+Verimizde analizimiz için gerekli olan **Date** ve **Close** değişkenlerini seçelim ve bu gözlemlere ait ilk 6 gözlemini görüntüleyelim
+ 
+```{r message=FALSE, warning=FALSE}
+my_data2 = select(my_data, -2,-3,-4,-6,-7)
+knitr::kable(head(my_data2))
+```
+
+#### 5.ADIM
+
+**Tarih** sütun başlığını **ds** ile ve **Close** sütun başlığını **y ** ile adlandıralım
+```{r message=FALSE, warning=FALSE}
+colnames(my_data2)[1] <- "ds"
+colnames(my_data2)[2] <- "y"
+knitr::kable(head(my_data2))
+```
+
+#### 6.ADIM
+
+Verimizdeki eksik gözlemleri (NA) 0 ile değiştirelim
+```{r}
+my_data2$y <- str_replace_all(my_data2$y, 'null', '0') #sutundaki tum bos degerleri 0'larla degistirir
+knitr::kable(head(my_data2))
+```
+
+#### 7.ADIM
+
+Verimizin tahminini yapabilmemiz için mevsimsellik ve periyot ayarlarını yapalım
+
+```{r}
+Model1<-prophet(my_data2, daily.seasonality = TRUE)
+Future1<-make_future_dataframe(Model1, periods = (365*1))
+```
+
+#### 8.ADIM
+
+Bu adımda verimizin gelecek tahminlerini yapalım
+```{r}
+Forecast1<-predict(Model1,Future1)
+knitr::kable(tail(Forecast1[c('ds','yhat','yhat_lower','yhat_upper')]))
+```
+Daha sonra bu tahminlerimizi gerçek veri setimizin üzerinde çizdirelim ve tahmin performansını gözlemleyelim
+
+#### 9.ADIM
+```{r message=FALSE, warning=FALSE}
+dyplot.prophet(Model1,Forecast1)
+```
+Grafiğe baktığımızda ince mavi çizgi tahmin edilen fiyat trendi, noktalı siyah çizgi ise zaman içindeki tarihsel fiyatı temsil etmektedir.
+
+Grafikte 11 Şubat 2022 tarihini incelediğimizde güncel fiyat 42407.94 USD iken modelimiz 41082.79 USD olarak tahmin etmiştir.
+
+1 Temmuz 2023 tarihi için modelimizin tahmin fiyatı 5555.2 USD’dir.
+
+Modelimiz 1 Ocak 2024 tarihinde bitcoin fiyatını –1051.95 USD olarak tahmin etmiştir.
+
+Ayrıca grafiğimiz incelendiğinde kurduğumuz tahmin modeline göre yeni yılda bitcoin fiyatının düşüşte olacağını öngörebiliriz
+
+```{r}
+prophet_plot_components(Model1,Forecast1)
+```
+Yukarıdaki grafiklerde ise günlük, haftalık ve yıllık aralıklarla yakalanan mevsimsel eğilimleri görebiliriz.
+Her ayın/yılın 15. günü için bir data frame oluşturup 2023-03-15 ve 2024-03-15 tarih aralığı filtreleyelim. Bu hedef yıl aralığını filtrelememizin amacı daha grenli bir görünüm elde etmektir.
+
+#### 10.ADIM
+Modelimizin gelecek yıl için tahminleri aşağıdaki gibidir:
+```{r}
+d<-data.frame(Forecast1[c('ds','yhat','yhat_lower','yhat_upper')])
+
+Price_1_Year_Table<-d[format.Date(d$ds, "%d")=="15" &
+                              !is.na(d$ds),]
+```
+
+```{r}
+Truncated1 <- (subset(Price_1_Year_Table, ds>="2023-03-15"))
+knitr::kable(Truncated1)
+
+Truncated <- (subset(Price_1_Year_Table, ds>="2022-05-15"))
+knitr::kable(Truncated)
+```
+
+Gelecek yıl için standart tahmini ortalamayı aşağıdaki gibi tahmin etmiştir:
+
+```{r}
+knitr::kable(mean(Truncated$yhat))
+```
+
+Gelecek yıl için alt sınırda öngörülen ortalama fiyatı aşağıdaki gibi tahmin etmiştir:
+```{r}
+knitr::kable(mean(Truncated$yhat_lower))
+```
+
+Gelecek yıl için üst sınırda öngörülen ortalama fiyatı aşağıdaki gibi tahmin etmiştir:
+```{r}
+knitr::kable(mean(Truncated$yhat_upper))
+```
+
+### SONUÇ
+
+Bu uygulamada doğrusal olmayan trendlere uyan bir regresyon modeli uygulayarak tahmin edilen sonuçlar, önümüzdeki yıl için öngörülen Bitcoin kapanış fiyatı tahminleri arasında makul bir fark olduğunu gösteriyor. Bitcoin'in piyasa oynaklığı göz önüne alındığında bu sonuçlar dikkatle değerlendirilmelidir. Ayrıca, her zaman siyah kuğu olayları göz önünde bulundurulmalıdır. Bitcoin'in bir varlık olarak kullanım durumu göz önüne alındığında, çalışmada kullanılan tahminleme modelleri zaman içinde perakende ve kurumsal satın alma alışkanlıkları, faktoring mevsimleri ve tatiller gibi bazı hususları dikkate almaktadır.
+
